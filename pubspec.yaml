@@ -1,0 +1,77 @@
+name: budget_app
+description: En enkel och smidig budgetapp för att hålla koll på din ekonomi.
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # ── State management ──────────────────────────────────────────
+  flutter_riverpod: ^2.5.1
+
+  # ── Local storage ─────────────────────────────────────────────
+  # hive_ce = community-maintained fork of Hive, drop-in replacement
+  hive_ce: ^2.10.0
+  hive_ce_flutter: ^2.2.0
+
+  # ── Navigation ────────────────────────────────────────────────
+  go_router: ^14.2.0
+
+  # ── Utilities ─────────────────────────────────────────────────
+  intl: ^0.20.2 # Date & number formatting
+  uuid: ^4.4.0 # Unique IDs for models
+  equatable: ^2.0.5 # Value equality for models
+
+  # ── UI ───────────────────────────────────────────────────────
+  flutter_slidable: ^3.1.0 # Swipe-to-delete on list items
+  gap: ^3.0.1 # Cleaner SizedBox spacing
+  package_info_plus: ^8.0.0 # Read app version for Settings screen
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.1
+
+  # ── Code generation (Hive + Riverpod) ────────────────────────
+  build_runner: ^2.4.11
+  hive_ce_generator: ^1.8.0
+
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+flutter_launcher_icons:
+  # Path to your logo (square PNG, min 1024x1024px recommended)
+  image_path: "assets/images/logo.png"
+
+  # ── Android ───────────────────────────────────────────────────
+  android: true
+  min_sdk_android: 21 # matches a modern minSdkVersion
+
+  # Adaptive icon (Android 8.0+) — foreground + background separately
+  # This gives the rounded/squircle shape on modern Android devices.
+  # If you only have one image, set both to the same file.
+  adaptive_icon_foreground: "assets/images/logo.png"
+  adaptive_icon_background: "#4F6EF7" # your AppColors.primary value
+
+  # ── iOS ───────────────────────────────────────────────────────
+  ios: true
+  # iOS does NOT allow transparency in app icons — use a PNG without alpha.
+  # If your logo has a transparent background, set remove_alpha_ios: true
+  remove_alpha_ios: true
+
+  # Add your asset folders here when you add images/icons later:
+  # assets:
+  #   - assets/images/
+  #   - assets/icons/
