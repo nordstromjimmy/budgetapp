@@ -25,11 +25,11 @@ class BudgetScreen extends ConsumerWidget {
       body: CustomScrollView(
         slivers: [
           // ── App bar ──────────────────────────────────────────
-          const SliverAppBar(
+          SliverAppBar(
             floating: true,
             snap: true,
-            title: Text(AppStrings.budgetTitle),
-            actions: [MonthSelector(), Gap(12)],
+            title: const Text(AppStrings.budgetTitle),
+            actions: const [MonthSelector(), Gap(12)],
           ),
 
           if (progresses.isEmpty)
@@ -100,6 +100,7 @@ class BudgetScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fab_budget',
         onPressed: () => _showAddBudgetSheet(context, ref),
         tooltip: AppStrings.budgetAdd,
         child: const Icon(Icons.add),
@@ -843,7 +844,7 @@ class _EditBudgetSheetState extends State<_EditBudgetSheet> {
               // ── Amount ────────────────────────────────────────
               TextFormField(
                 controller: _amountController,
-                autofocus: false,
+                autofocus: true,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [

@@ -7,31 +7,30 @@ part 'transaction.g.dart';
 /// ⚠️  Never change existing @HiveField indexes after release —
 ///     doing so corrupts data already stored on user devices.
 @HiveType(typeId: 1)
-class Transaction extends HiveObject with EquatableMixin {
+class Transaction with EquatableMixin {
   @HiveField(0)
   final String id;
 
-  /// Always stored as a positive number.
-  /// Whether it is income or expense is determined by [isExpense].
   @HiveField(1)
   final double amount;
 
-  /// Optional note from the user (e.g. "ICA Maxi fredag")
   @HiveField(2)
   final String description;
 
-  /// References [Category.id]
   @HiveField(3)
   final String categoryId;
 
-  /// The date the transaction occurred (time component ignored in UI)
   @HiveField(4)
   final DateTime date;
 
-  /// true  → utgift  (money going out)
-  /// false → inkomst (money coming in)
   @HiveField(5)
   final bool isExpense;
+
+  /// If set, this transaction was auto-generated from a [RecurringTransaction]
+  /// with this id. Used to avoid duplicate generation and for cascade-delete.
+  /// Null for all manually entered transactions.
+  @HiveField(6)
+  final String? recurringTransactionId;
 
   Transaction({
     required this.id,
@@ -40,9 +39,10 @@ class Transaction extends HiveObject with EquatableMixin {
     required this.categoryId,
     required this.date,
     required this.isExpense,
+    this.recurringTransactionId,
   });
 
-  // ── copyWith ──────────────────────────────────────────────────
+  bool get isRecurring => recurringTransactionId != null;
 
   Transaction copyWith({
     String? id,
@@ -51,6 +51,7 @@ class Transaction extends HiveObject with EquatableMixin {
     String? categoryId,
     DateTime? date,
     bool? isExpense,
+    String? recurringTransactionId,
   }) {
     return Transaction(
       id: id ?? this.id,
@@ -59,10 +60,10 @@ class Transaction extends HiveObject with EquatableMixin {
       categoryId: categoryId ?? this.categoryId,
       date: date ?? this.date,
       isExpense: isExpense ?? this.isExpense,
+      recurringTransactionId:
+          recurringTransactionId ?? this.recurringTransactionId,
     );
   }
-
-  // ── Equatable ─────────────────────────────────────────────────
 
   @override
   List<Object?> get props => [
@@ -72,5 +73,6 @@ class Transaction extends HiveObject with EquatableMixin {
         categoryId,
         date,
         isExpense,
+        recurringTransactionId,
       ];
 }

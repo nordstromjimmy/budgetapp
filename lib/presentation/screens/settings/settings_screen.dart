@@ -1,14 +1,17 @@
-import 'package:budget_app/presentation/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../data/models/category.dart';
+import '../../../data/services/backup_service.dart';
 import '../../providers/budget_provider.dart';
+import '../../providers/recurring_transaction_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/transaction_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -34,6 +37,28 @@ class SettingsScreen extends ConsumerWidget {
 
           // ── Categories ──────────────────────────────────────
           _SectionHeader(label: AppStrings.settingsCategories),
+          _SettingsCard(
+            children: [
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.repeat_rounded,
+                      color: AppColors.primary, size: 20),
+                ),
+                title: const Text('Återkommande transaktioner',
+                    style: TextStyle(fontWeight: FontWeight.w500)),
+                subtitle: const Text('Hantera månatliga transaktioner'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/aterkommande'),
+              ),
+              const Divider(height: 1, indent: 16),
+            ],
+          ),
+          const Gap(12),
           _CategorySection(),
           const Gap(20),
 
@@ -41,6 +66,43 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(label: AppStrings.settingsData),
           _SettingsCard(
             children: [
+              // ── Export ──────────────────────────────────────
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.income.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.upload_rounded,
+                      color: AppColors.income, size: 20),
+                ),
+                title: const Text('Exportera data',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Spara en säkerhetskopia som JSON'),
+                onTap: () => _exportData(context),
+              ),
+              const Divider(height: 1, indent: 16),
+
+              // ── Import ──────────────────────────────────────
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.download_rounded,
+                      color: AppColors.primary, size: 20),
+                ),
+                title: const Text('Importera data',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Återställ från en JSON-säkerhetskopia'),
+                onTap: () => _importData(context, ref),
+              ),
+              const Divider(height: 1, indent: 16),
+
+              // ── Clear ───────────────────────────────────────
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(6),
@@ -102,6 +164,92 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  // ── Export ───────────────────────────────────────────────────
+
+  Future<void> _exportData(BuildContext context) async {
+    try {
+      await BackupService().exportToJson(context);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export misslyckades: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Import ────────────────────────────────────────────────────
+
+  Future<void> _importData(BuildContext context, WidgetRef ref) async {
+    // Warn the user that existing data will be overwritten
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Importera data?'),
+        content: const Text(
+          'All befintlig data ersätts med innehållet i säkerhetskopian. '
+          'Det går inte att ångra.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(AppStrings.buttonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Importera'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final result = await BackupService().importFromJson();
+
+    if (!context.mounted) return;
+
+    if (result.cancelled) return;
+
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.errorMessage ?? AppStrings.snackError),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.expense,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
+
+    // Reload each notifier's state directly from Hive.
+    // We call reload() instead of invalidate() to avoid the provider
+    // teardown cascade that causes a black frame with StatefulShellRoute.
+    ref.read(transactionNotifierProvider.notifier).reload();
+    ref.read(categoryNotifierProvider.notifier).reload();
+    ref.read(budgetNotifierProvider.notifier).reload();
+    ref.read(recurringTransactionNotifierProvider.notifier).reload();
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            'Import klar! ${result.transactionCount} transaktioner återställda.'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.income,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   // ── Clear all data ────────────────────────────────────────────
 
   Future<void> _confirmClearData(BuildContext context, WidgetRef ref) async {
@@ -130,7 +278,7 @@ class SettingsScreen extends ConsumerWidget {
 
       // Re-seed default categories so the app is still usable
       await ref.read(transactionRepositoryProvider).seedDefaultCategories();
-      ref.invalidate(categoryNotifierProvider);
+      ref.read(categoryNotifierProvider.notifier).reload();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

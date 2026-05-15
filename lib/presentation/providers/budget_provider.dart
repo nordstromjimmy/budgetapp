@@ -27,6 +27,8 @@ class BudgetNotifier extends StateNotifier<List<Budget>> {
     state = _repository.getAllBudgets();
   }
 
+  void reload() => _load();
+
   Future<void> setBudget({
     required String categoryId,
     required double amount,
@@ -39,17 +41,18 @@ class BudgetNotifier extends StateNotifier<List<Budget>> {
       month: month,
       year: year,
     );
+    // setBudget may upsert (delete old + add new), so re-read is safest here
     _load();
   }
 
   Future<void> deleteBudget(String id) async {
     await _repository.deleteBudget(id);
-    _load();
+    state = state.where((b) => b.id != id).toList();
   }
 
   Future<void> clearAll() async {
     await _repository.clearAll();
-    _load();
+    state = [];
   }
 }
 

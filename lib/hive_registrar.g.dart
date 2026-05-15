@@ -5,12 +5,14 @@
 import 'package:hive_ce/hive.dart';
 import 'package:budget_app/data/models/budget.dart';
 import 'package:budget_app/data/models/category.dart';
+import 'package:budget_app/data/models/recurring_transaction.dart';
 import 'package:budget_app/data/models/transaction.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
     registerAdapter(BudgetAdapter());
     registerAdapter(CategoryAdapter());
+    registerAdapter(RecurringTransactionAdapter());
     registerAdapter(TransactionAdapter());
   }
 }
@@ -19,6 +21,7 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
     registerAdapter(BudgetAdapter());
     registerAdapter(CategoryAdapter());
+    registerAdapter(RecurringTransactionAdapter());
     registerAdapter(TransactionAdapter());
   }
 }

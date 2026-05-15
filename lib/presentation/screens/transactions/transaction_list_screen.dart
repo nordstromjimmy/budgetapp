@@ -8,9 +8,11 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../data/models/transaction.dart';
+import '../../providers/recurring_transaction_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../widgets/transaction_list_tile.dart';
 import '../home/widgets/month_selector.dart';
+import 'widgets/transaction_statistics.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FILTER ENUM
@@ -40,6 +42,7 @@ class TransactionListScreen extends ConsumerStatefulWidget {
 
 class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
   _TransactionFilter _filter = _TransactionFilter.all;
+  bool _showStats = false;
 
   static final _dateFormat = DateFormat('d MMMM yyyy', 'sv_SE');
   static final _todayFormat = DateFormat('d MMMM', 'sv_SE');
@@ -101,7 +104,19 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
             floating: true,
             snap: true,
             title: const Text(AppStrings.transactionsTitle),
-            actions: const [MonthSelector(), Gap(12)],
+            actions: [
+              IconButton(
+                icon: Icon(
+                  Icons.bar_chart_rounded,
+                  color:
+                      _showStats ? Theme.of(context).colorScheme.primary : null,
+                ),
+                tooltip: 'Statistik',
+                onPressed: () => setState(() => _showStats = !_showStats),
+              ),
+              const MonthSelector(),
+              const Gap(12),
+            ],
           ),
 
           // ── Filter chips ───────────────────────────────────
@@ -139,6 +154,19 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
             ),
           ),
 
+          // ── Statistics panel ───────────────────────────────
+          if (_showStats)
+            SliverToBoxAdapter(
+              child: AnimatedSize(
+                duration: Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: TransactionStatistics(),
+                ),
+              ),
+            ),
+
           // ── Content ────────────────────────────────────────
           if (filtered.isEmpty)
             SliverFillRemaining(
@@ -167,6 +195,7 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fab_transactions',
         onPressed: () => context.push('/transaktion/lagg-till', extra: true),
         tooltip: AppStrings.addTransactionTitle,
         child: const Icon(Icons.add),
@@ -177,6 +206,20 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
   // ── Delete ────────────────────────────────────────────────────
 
   Future<void> _deleteTransaction(String id) async {
+    final transactions = ref.read(transactionNotifierProvider);
+    final transaction = transactions.firstWhere((t) => t.id == id);
+
+    // If this transaction was auto-generated from a recurring template,
+    // ask the user what they want to do.
+    if (transaction.isRecurring) {
+      await _deleteRecurringDialog(transaction);
+    } else {
+      await _doDelete(id);
+    }
+  }
+
+  /// Simple delete for one-time transactions.
+  Future<void> _doDelete(String id) async {
     await ref.read(transactionNotifierProvider.notifier).deleteTransaction(id);
 
     if (mounted) {
@@ -190,7 +233,83 @@ class _TransactionListScreenState extends ConsumerState<TransactionListScreen> {
       );
     }
   }
+
+  /// For recurring-generated transactions: ask whether to delete just this
+  /// month's entry or the entire recurring template.
+  Future<void> _deleteRecurringDialog(Transaction transaction) async {
+    final choice = await showDialog<_RecurringDeleteChoice>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Återkommande transaktion'),
+        content: const Text(
+          'Den här transaktionen genereras automatiskt varje månad. '
+          'Vad vill du göra?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Avbryt'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, _RecurringDeleteChoice.onlyThis),
+            child: const Text('Ta bort bara denna månaden'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.expense),
+            onPressed: () =>
+                Navigator.pop(ctx, _RecurringDeleteChoice.template),
+            child: const Text('Ta bort hela mallen'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || choice == null) return;
+
+    switch (choice) {
+      case _RecurringDeleteChoice.onlyThis:
+        await ref
+            .read(transactionNotifierProvider.notifier)
+            .deleteTransaction(transaction.id);
+
+        // Persist the skip inside the RecurringTransaction model itself
+        await ref
+            .read(recurringTransactionNotifierProvider.notifier)
+            .skipThisMonth(transaction.recurringTransactionId!);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Transaktion borttagen för denna månad'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+
+      case _RecurringDeleteChoice.template:
+        // Delete the template + ALL generated transactions from it
+        await ref
+            .read(recurringTransactionNotifierProvider.notifier)
+            .delete(transaction.recurringTransactionId!);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Återkommande mall borttagen'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+    }
+  }
 }
+
+enum _RecurringDeleteChoice { onlyThis, template }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATE GROUP

@@ -9,7 +9,7 @@ part 'budget.g.dart';
 /// ⚠️  Never change existing @HiveField indexes after release —
 ///     doing so corrupts data already stored on user devices.
 @HiveType(typeId: 2)
-class Budget extends HiveObject with EquatableMixin {
+class Budget with EquatableMixin {
   @HiveField(0)
   final String id;
 

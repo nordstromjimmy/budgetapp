@@ -3,7 +3,7 @@
 /// This makes future localisation (if needed) trivial.
 abstract class AppStrings {
   // ── App ───────────────────────────────────────────────────────
-  static const appName = 'Budgetappen';
+  static const appName = 'PengarKollen';
 
   // ── Bottom navigation ─────────────────────────────────────────
   static const navHome = 'Hem';

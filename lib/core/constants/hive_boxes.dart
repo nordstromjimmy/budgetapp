@@ -5,6 +5,7 @@ abstract class HiveBoxes {
   static const transactions = 'transactions';
   static const categories = 'categories';
   static const budgets = 'budgets';
+  static const recurringTransactions = 'recurringTransactions';
 
   /// Non-typed box — stores primitive settings values (String, int, bool).
   static const settings = 'settings';

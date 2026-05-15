@@ -39,9 +39,15 @@ class TransactionNotifier extends StateNotifier<List<Transaction>> {
     _load();
   }
 
+  /// Reads all transactions from Hive and rebuilds state.
+  /// Only called on startup and after external writes (e.g. recurring generation).
   void _load() {
-    state = _repository.getAllTransactions();
+    final transactions = _repository.getAllTransactions();
+    state = transactions;
   }
+
+  /// Called externally (e.g. after recurring transaction generation)
+  void reload() => _load();
 
   Future<void> addTransaction({
     required double amount,
@@ -50,29 +56,34 @@ class TransactionNotifier extends StateNotifier<List<Transaction>> {
     required DateTime date,
     required bool isExpense,
   }) async {
-    await _repository.addTransaction(
+    final transaction = await _repository.addTransaction(
       amount: amount,
       description: description,
       categoryId: categoryId,
       date: date,
       isExpense: isExpense,
     );
-    _load();
+    // Directly prepend to state and re-sort — no Hive re-read needed
+    final updated = [transaction, ...state];
+    updated.sort((a, b) => b.date.compareTo(a.date));
+    state = updated;
   }
 
   Future<void> updateTransaction(Transaction transaction) async {
     await _repository.updateTransaction(transaction);
-    _load();
+    // Swap the old entry for the updated one in-place
+    state = state.map((t) => t.id == transaction.id ? transaction : t).toList();
   }
 
   Future<void> deleteTransaction(String id) async {
     await _repository.deleteTransaction(id);
-    _load();
+    // Remove from state directly — never re-read from Hive for deletes
+    state = state.where((t) => t.id != id).toList();
   }
 
   Future<void> clearAll() async {
     await _repository.clearAll();
-    _load();
+    state = [];
   }
 }
 
@@ -96,6 +107,8 @@ class CategoryNotifier extends StateNotifier<List<Category>> {
     state = _repository.getAllCategories();
   }
 
+  void reload() => _load();
+
   Future<void> addCategory({
     required String name,
     required int colorValue,
@@ -108,17 +121,18 @@ class CategoryNotifier extends StateNotifier<List<Category>> {
       iconKey: iconKey,
       isExpense: isExpense,
     );
+    // Re-read for categories since the repo generates the id
     _load();
   }
 
   Future<void> updateCategory(Category category) async {
     await _repository.updateCategory(category);
-    _load();
+    state = state.map((c) => c.id == category.id ? category : c).toList();
   }
 
   Future<void> deleteCategory(String id) async {
     await _repository.deleteCategory(id);
-    _load();
+    state = state.where((c) => c.id != id).toList();
   }
 }
 

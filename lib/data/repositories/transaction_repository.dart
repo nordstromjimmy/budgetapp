@@ -45,13 +45,14 @@ class TransactionRepository {
         .toList();
   }
 
-  /// Adds a new transaction. The [id] is generated automatically.
-  Future<void> addTransaction({
+  /// Adds a new transaction. Returns the created [Transaction].
+  Future<Transaction> addTransaction({
     required double amount,
     required String description,
     required String categoryId,
     required DateTime date,
     required bool isExpense,
+    String? recurringTransactionId,
   }) async {
     final transaction = Transaction(
       id: _uuid.v4(),
@@ -60,8 +61,10 @@ class TransactionRepository {
       categoryId: categoryId,
       date: date,
       isExpense: isExpense,
+      recurringTransactionId: recurringTransactionId,
     );
     await _transactionBox.put(transaction.id, transaction);
+    return transaction;
   }
 
   /// Replaces an existing transaction. Identified by [transaction.id].

@@ -23,6 +23,7 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fab_home',
         onPressed: () => _showAddTransactionSheet(context),
         tooltip: AppStrings.addTransactionTitle,
         child: const Icon(Icons.add),
@@ -115,7 +116,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 TextButton(
                   onPressed: () => context.go('/transaktioner'),
-                  child: const Text(AppStrings.homeSeeAll),
+                  child: Text(AppStrings.homeSeeAll),
                 ),
               ],
             ),

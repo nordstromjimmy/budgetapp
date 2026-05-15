@@ -14,7 +14,7 @@ part 'category.g.dart';
 /// an IconData codePoint int. This is required for Flutter release builds —
 /// dynamic IconData(codePoint) constructions break the icon tree shaker.
 @HiveType(typeId: 0)
-class Category extends HiveObject with EquatableMixin {
+class Category with EquatableMixin {
   @HiveField(0)
   final String id;
 

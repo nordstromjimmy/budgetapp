@@ -10,6 +10,7 @@ import 'presentation/screens/budget/budget_screen.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/screens/transactions/add_transaction_screen.dart';
+import 'presentation/screens/transactions/recurring_transactions_screen.dart';
 import 'presentation/screens/transactions/transaction_list_screen.dart';
 import 'presentation/widgets/app_bottom_nav.dart';
 
@@ -90,6 +91,11 @@ final _router = GoRouter(
           isExpense: true, // overridden once transaction is loaded
         );
       },
+    ),
+
+    GoRoute(
+      path: '/aterkommande',
+      builder: (context, state) => const RecurringTransactionsScreen(),
     ),
   ],
 );

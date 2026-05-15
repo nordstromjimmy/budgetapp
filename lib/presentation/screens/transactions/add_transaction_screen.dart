@@ -9,6 +9,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../data/models/category.dart';
 import '../../../data/models/transaction.dart';
+import '../../providers/recurring_transaction_provider.dart';
 import '../../providers/transaction_provider.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
@@ -18,12 +19,8 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
     this.transactionId,
   });
 
-  /// Pre-selects the transaction type. Ignored when editing (type comes from the transaction).
   final bool isExpense;
-
-  /// When provided, the screen enters edit mode and loads this transaction.
   final String? transactionId;
-
   bool get isEditing => transactionId != null;
 
   @override
@@ -41,22 +38,20 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   Category? _selectedCategory;
   bool _isLoading = false;
+  bool _isRecurring = false;
+  int _dayOfMonth = DateTime.now().day.clamp(1, 28);
 
   Transaction? _existingTransaction;
 
   static final _dateFormat = DateFormat('d MMMM yyyy', 'sv_SE');
 
-  // ── Lifecycle ─────────────────────────────────────────────────
-
   @override
   void initState() {
     super.initState();
     _isExpense = widget.isExpense;
-
     if (widget.isEditing) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadTransaction());
     } else {
-      // Auto-focus the amount field on add
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _amountFocusNode.requestFocus(),
       );
@@ -82,7 +77,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       (c) => c.id == transaction.categoryId,
       orElse: () => categories.first,
     );
-
     setState(() {
       _existingTransaction = transaction;
       _isExpense = transaction.isExpense;
@@ -93,8 +87,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _descriptionController.text = transaction.description;
     });
   }
-
-  // ── Build ─────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -131,8 +123,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               isExpense: _isExpense,
               onChanged: (value) => setState(() {
                 _isExpense = value;
-                _selectedCategory =
-                    null; // reset — categories are type-specific
+                _selectedCategory = null;
               }),
             ),
             const Gap(24),
@@ -155,7 +146,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                       {required currentLength,
                       required isFocused,
                       maxLength}) =>
-                  null, // hide the counter
+                  null,
             ),
             const Gap(16),
 
@@ -163,9 +154,27 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             _buildCategorySelector(theme),
             const Gap(16),
 
-            // ── Date ─────────────────────────────────────────
-            _buildDateSelector(theme),
-            const Gap(32),
+            // ── Recurring toggle ─────────────────────────────
+            // Only show when adding (not editing — we don't support
+            // converting an existing one-time tx to recurring)
+            if (!widget.isEditing) ...[
+              _buildRecurringToggle(theme),
+              const Gap(16),
+            ],
+
+            // ── Date (only for one-time transactions) ─────────
+            if (!_isRecurring || widget.isEditing) ...[
+              _buildDateSelector(theme),
+              const Gap(16),
+            ],
+
+            // ── Day of month (only for recurring) ────────────
+            if (_isRecurring && !widget.isEditing) ...[
+              _buildDayOfMonthSelector(theme),
+              const Gap(16),
+            ],
+
+            const Gap(16),
 
             // ── Save button ───────────────────────────────────
             SizedBox(
@@ -244,10 +253,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             GestureDetector(
               onTap: _openCategorySheet,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: theme.inputDecorationTheme.fillColor,
                   borderRadius: BorderRadius.circular(12),
@@ -257,11 +264,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.grid_view_rounded,
-                      size: 20,
-                      color: theme.colorScheme.onSurface.withOpacity(0.5),
-                    ),
+                    Icon(Icons.grid_view_rounded,
+                        size: 20,
+                        color: theme.colorScheme.onSurface.withOpacity(0.5)),
                     const Gap(12),
                     if (_selectedCategory != null) ...[
                       Container(
@@ -270,32 +275,22 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                           color: _selectedCategory!.color.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Icon(
-                          _selectedCategory!.icon,
-                          size: 16,
-                          color: _selectedCategory!.color,
-                        ),
+                        child: Icon(_selectedCategory!.icon,
+                            size: 16, color: _selectedCategory!.color),
                       ),
                       const Gap(10),
-                      Text(
-                        _selectedCategory!.name,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      Text(_selectedCategory!.name,
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w600)),
                     ] else
-                      Text(
-                        AppStrings.fieldCategory,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                      ),
+                      Text(AppStrings.fieldCategory,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface
+                                  .withOpacity(0.5))),
                     const Spacer(),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 20,
-                      color: theme.colorScheme.onSurface.withOpacity(0.35),
-                    ),
+                    Icon(Icons.chevron_right,
+                        size: 20,
+                        color: theme.colorScheme.onSurface.withOpacity(0.35)),
                   ],
                 ),
               ),
@@ -304,17 +299,148 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               const Gap(6),
               Padding(
                 padding: const EdgeInsets.only(left: 16),
-                child: Text(
-                  field.errorText!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.error,
-                  ),
-                ),
+                child: Text(field.errorText!,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.error)),
               ),
             ],
           ],
         );
       },
+    );
+  }
+
+  // ── Recurring toggle ──────────────────────────────────────────
+
+  Widget _buildRecurringToggle(ThemeData theme) {
+    return GestureDetector(
+      onTap: () => setState(() => _isRecurring = !_isRecurring),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: _isRecurring
+              ? AppColors.primary.withOpacity(0.08)
+              : theme.inputDecorationTheme.fillColor,
+          borderRadius: BorderRadius.circular(12),
+          border: _isRecurring
+              ? Border.all(color: AppColors.primary, width: 1.5)
+              : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: (_isRecurring
+                        ? AppColors.primary
+                        : theme.colorScheme.onSurface)
+                    .withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.repeat_rounded,
+                size: 18,
+                color: _isRecurring
+                    ? AppColors.primary
+                    : theme.colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+            const Gap(12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Månadsvis återkommande',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: _isRecurring
+                          ? AppColors.primary
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    'Läggs till automatiskt varje månad',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: _isRecurring,
+              onChanged: (v) => setState(() => _isRecurring = v),
+              activeColor: AppColors.primary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Day of month picker ───────────────────────────────────────
+
+  Widget _buildDayOfMonthSelector(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: theme.inputDecorationTheme.fillColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.calendar_today_outlined,
+                  size: 20,
+                  color: theme.colorScheme.onSurface.withOpacity(0.5)),
+              const Gap(12),
+              Text(
+                'Dag i månaden: $_dayOfMonth',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const Gap(12),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppColors.primary,
+              thumbColor: AppColors.primary,
+              overlayColor: AppColors.primary.withOpacity(0.12),
+              inactiveTrackColor: theme.colorScheme.onSurface.withOpacity(0.12),
+            ),
+            child: Slider(
+              value: _dayOfMonth.toDouble(),
+              min: 1,
+              max: 28,
+              divisions: 27,
+              label: _dayOfMonth.toString(),
+              onChanged: (v) => setState(() => _dayOfMonth = v.round()),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('1',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.4))),
+              Text(
+                'Max dag 28 (undviker månadsslutsproblem)',
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.4)),
+              ),
+              Text('28',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.4))),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -331,31 +457,19 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 20,
-              color: theme.colorScheme.onSurface.withOpacity(0.5),
-            ),
+            Icon(Icons.calendar_today_outlined,
+                size: 20, color: theme.colorScheme.onSurface.withOpacity(0.5)),
             const Gap(12),
-            Text(
-              AppStrings.fieldDate,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
-              ),
-            ),
+            Text(AppStrings.fieldDate,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.5))),
             const Spacer(),
-            Text(
-              _dateFormat.format(_selectedDate),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(_dateFormat.format(_selectedDate),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600)),
             const Gap(4),
-            Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: theme.colorScheme.onSurface.withOpacity(0.35),
-            ),
+            Icon(Icons.chevron_right,
+                size: 20, color: theme.colorScheme.onSurface.withOpacity(0.35)),
           ],
         ),
       ),
@@ -381,10 +495,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         selected: _selectedCategory,
       ),
     );
-
-    if (selected != null) {
-      setState(() => _selectedCategory = selected);
-    }
+    if (selected != null) setState(() => _selectedCategory = selected);
   }
 
   Future<void> _pickDate() async {
@@ -395,45 +506,54 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       lastDate: DateTime.now(),
       locale: const Locale('sv', 'SE'),
     );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-    }
+    if (picked != null) setState(() => _selectedDate = picked);
   }
 
   Future<void> _save() async {
-    // Validate form — shows inline error messages
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategory == null) return;
 
     final amount = CurrencyFormatter.tryParse(_amountController.text)!;
-
     setState(() => _isLoading = true);
 
     try {
-      final notifier = ref.read(transactionNotifierProvider.notifier);
-
-      if (widget.isEditing && _existingTransaction != null) {
-        await notifier.updateTransaction(
-          _existingTransaction!.copyWith(
-            amount: amount,
-            description: _descriptionController.text.trim(),
-            categoryId: _selectedCategory!.id,
-            date: _selectedDate,
-            isExpense: _isExpense,
-          ),
-        );
+      if (_isRecurring && !widget.isEditing) {
+        // ── Save as recurring template ─────────────────────
+        await ref.read(recurringTransactionNotifierProvider.notifier).add(
+              amount: amount,
+              description: _descriptionController.text.trim(),
+              categoryId: _selectedCategory!.id,
+              isExpense: _isExpense,
+              dayOfMonth: _dayOfMonth,
+            );
+        if (mounted) {
+          _showSnack('Återkommande transaktion sparad');
+          Navigator.of(context).pop();
+        }
+      } else if (widget.isEditing && _existingTransaction != null) {
+        // ── Update existing one-time transaction ───────────
+        await ref.read(transactionNotifierProvider.notifier).updateTransaction(
+              _existingTransaction!.copyWith(
+                amount: amount,
+                description: _descriptionController.text.trim(),
+                categoryId: _selectedCategory!.id,
+                date: _selectedDate,
+                isExpense: _isExpense,
+              ),
+            );
         if (mounted) {
           _showSnack(AppStrings.snackTransactionUpdated);
           Navigator.of(context).pop();
         }
       } else {
-        await notifier.addTransaction(
-          amount: amount,
-          description: _descriptionController.text.trim(),
-          categoryId: _selectedCategory!.id,
-          date: _selectedDate,
-          isExpense: _isExpense,
-        );
+        // ── Save as one-time transaction ───────────────────
+        await ref.read(transactionNotifierProvider.notifier).addTransaction(
+              amount: amount,
+              description: _descriptionController.text.trim(),
+              categoryId: _selectedCategory!.id,
+              date: _selectedDate,
+              isExpense: _isExpense,
+            );
         if (mounted) {
           _showSnack(AppStrings.snackTransactionAdded);
           Navigator.of(context).pop();
@@ -447,6 +567,19 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   }
 
   Future<void> _confirmDelete() async {
+    final transactions = ref.read(transactionNotifierProvider);
+    final transaction = transactions.firstWhere(
+      (t) => t.id == widget.transactionId,
+    );
+
+    if (transaction.isRecurring) {
+      await _confirmDeleteRecurring(transaction);
+    } else {
+      await _confirmDeleteSimple();
+    }
+  }
+
+  Future<void> _confirmDeleteSimple() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -477,6 +610,59 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     }
   }
 
+  Future<void> _confirmDeleteRecurring(Transaction transaction) async {
+    final choice = await showDialog<_DeleteChoice>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Återkommande transaktion'),
+        content: const Text(
+          'Den här transaktionen genereras automatiskt varje månad. '
+          'Vad vill du göra?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Avbryt'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _DeleteChoice.onlyThis),
+            child: const Text('Bara denna månaden'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.expense),
+            onPressed: () => Navigator.pop(ctx, _DeleteChoice.template),
+            child: const Text('Ta bort hela mallen'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || choice == null) return;
+
+    switch (choice) {
+      case _DeleteChoice.onlyThis:
+        await ref
+            .read(transactionNotifierProvider.notifier)
+            .deleteTransaction(transaction.id);
+        await ref
+            .read(recurringTransactionNotifierProvider.notifier)
+            .skipThisMonth(transaction.recurringTransactionId!);
+        if (mounted) {
+          _showSnack('Transaktion borttagen för denna månad');
+          Navigator.of(context).pop();
+        }
+
+      case _DeleteChoice.template:
+        await ref
+            .read(recurringTransactionNotifierProvider.notifier)
+            .delete(transaction.recurringTransactionId!);
+        if (mounted) {
+          _showSnack('Återkommande mall borttagen');
+          Navigator.of(context).pop();
+        }
+    }
+  }
+
   void _showSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -494,7 +680,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
 class _TypeToggle extends StatelessWidget {
   const _TypeToggle({required this.isExpense, required this.onChanged});
-
   final bool isExpense;
   final ValueChanged<bool> onChanged;
 
@@ -536,7 +721,6 @@ class _ToggleOption extends StatelessWidget {
     required this.selected,
     required this.onTap,
   });
-
   final String label;
   final IconData icon;
   final Color color;
@@ -558,13 +742,14 @@ class _ToggleOption extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 16,
-                color: selected
-                    ? color
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-              ),
+              Icon(icon,
+                  size: 16,
+                  color: selected
+                      ? color
+                      : Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.4)),
               const Gap(6),
               Text(
                 label,
@@ -592,18 +777,14 @@ class _ToggleOption extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CategoryPickerSheet extends StatelessWidget {
-  const _CategoryPickerSheet({
-    required this.categories,
-    required this.selected,
-  });
-
+  const _CategoryPickerSheet(
+      {required this.categories, required this.selected});
   final List<Category> categories;
   final Category? selected;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return DraggableScrollableSheet(
       initialChildSize: 0.55,
       minChildSize: 0.4,
@@ -611,7 +792,6 @@ class _CategoryPickerSheet extends StatelessWidget {
       expand: false,
       builder: (_, controller) => Column(
         children: [
-          // ── Handle ──────────────────────────────────────────
           const Gap(8),
           Container(
             width: 40,
@@ -624,15 +804,11 @@ class _CategoryPickerSheet extends StatelessWidget {
           const Gap(12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              AppStrings.fieldCategory,
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            child: Text(AppStrings.fieldCategory,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
           ),
           const Gap(12),
-
-          // ── Grid ────────────────────────────────────────────
           Expanded(
             child: GridView.builder(
               controller: controller,
@@ -647,7 +823,6 @@ class _CategoryPickerSheet extends StatelessWidget {
               itemBuilder: (_, i) {
                 final cat = categories[i];
                 final isSelected = selected?.id == cat.id;
-
                 return GestureDetector(
                   onTap: () => Navigator.of(context).pop(cat),
                   child: AnimatedContainer(
@@ -698,3 +873,5 @@ class _CategoryPickerSheet extends StatelessWidget {
     );
   }
 }
+
+enum _DeleteChoice { onlyThis, template }
