@@ -130,14 +130,14 @@ class TransactionRepository {
   Future<void> addCategory({
     required String name,
     required int colorValue,
-    required int iconCodePoint,
+    required String iconKey,
     required bool isExpense,
   }) async {
     final category = Category(
       id: _uuid.v4(),
       name: name,
       colorValue: colorValue,
-      iconCodePoint: iconCodePoint,
+      iconKey: iconKey,
       isExpense: isExpense,
     );
     await _categoryBox.put(category.id, category);

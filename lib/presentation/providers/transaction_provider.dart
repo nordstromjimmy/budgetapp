@@ -99,13 +99,13 @@ class CategoryNotifier extends StateNotifier<List<Category>> {
   Future<void> addCategory({
     required String name,
     required int colorValue,
-    required int iconCodePoint,
+    required String iconKey,
     required bool isExpense,
   }) async {
     await _repository.addCategory(
       name: name,
       colorValue: colorValue,
-      iconCodePoint: iconCodePoint,
+      iconKey: iconKey,
       isExpense: isExpense,
     );
     _load();

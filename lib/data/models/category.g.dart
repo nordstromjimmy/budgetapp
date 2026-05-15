@@ -20,7 +20,7 @@ class CategoryAdapter extends TypeAdapter<Category> {
       id: fields[0] as String,
       name: fields[1] as String,
       colorValue: (fields[2] as num).toInt(),
-      iconCodePoint: (fields[3] as num).toInt(),
+      iconKey: fields[3] as String,
       isExpense: fields[4] as bool,
     );
   }
@@ -36,7 +36,7 @@ class CategoryAdapter extends TypeAdapter<Category> {
       ..writeByte(2)
       ..write(obj.colorValue)
       ..writeByte(3)
-      ..write(obj.iconCodePoint)
+      ..write(obj.iconKey)
       ..writeByte(4)
       ..write(obj.isExpense);
   }
